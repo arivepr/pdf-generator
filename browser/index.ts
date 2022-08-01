@@ -56,7 +56,8 @@ const getNewPdfName = () => {
 export const previewPdf = async (
   url: string,
   template: ServiceNames,
-  templateData: Record<string, unknown>
+  templateData: Record<string, unknown>,
+  orientationOption?: boolean
 ) => {
   const browser = await puppeteer.launch({
     headless: true,
@@ -97,6 +98,7 @@ export const previewPdf = async (
     displayHeaderFooter: true,
     headerTemplate,
     footerTemplate,
+    landscape: orientationOption,
   });
 
   if (!pageStatus.ok()) {
@@ -112,7 +114,8 @@ export const previewPdf = async (
 const generatePdf = async (
   url: string,
   rhIdentity: string,
-  template: ServiceNames
+  template: ServiceNames,
+  orientationOption: boolean
 ) => {
   const pdfPath = getNewPdfName();
 
@@ -165,6 +168,7 @@ const generatePdf = async (
     displayHeaderFooter: true,
     headerTemplate,
     footerTemplate,
+    landscape: orientationOption,
   });
 
   await browser.close();

@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request } from 'express';
 import fs from 'fs';
 import path from 'path';
 import cors from 'cors';
@@ -13,9 +13,21 @@ import getTemplateData from './data-access';
 import renderTemplate from './render-template';
 import ServiceNames from './data-access/service-names';
 import config from './config';
+import { processOrientationOption } from '../browser/helpers';
 
 const PORT = config.webPort;
 const APIPrefix = '/api/crc-pdf-generator/v1';
+type PreviewOptions = unknown;
+type ReqQuery = {
+  orientation?: string;
+  template?: string;
+};
+export type PreviewHandlerRequest = Request<
+  PreviewOptions,
+  any,
+  unknown,
+  ReqQuery
+>;
 
 const app = express();
 app.use(cors());
@@ -47,11 +59,13 @@ app.use('^/$', async (req, res, _next) => {
 
 app.post(`${APIPrefix}/generate`, async (req, res) => {
   const rhIdentity = req.headers['x-rh-identity'] as string;
+  const orientationOption = processOrientationOption(req);
 
   if (!rhIdentity) {
     return res.status(401).send('Unauthorized access not allowed');
   }
-  const template: ServiceNames = req.body.template;
+
+  const template: ServiceNames = req.query.template as ServiceNames;
 
   const tenant = JSON.parse(atob(rhIdentity))['identity']['internal']['org_id'];
   const url = `http://localhost:${PORT}?template=${template}`;
@@ -66,7 +80,12 @@ app.post(`${APIPrefix}/generate`, async (req, res) => {
 
     // Generate the pdf
     const startRender = performance.now();
-    const pathToPdf = await generatePdf(url, rhIdentity, template);
+    const pathToPdf = await generatePdf(
+      url,
+      rhIdentity,
+      template,
+      orientationOption
+    );
     elapsed = performance.now() - startRender;
     console.info('info', `Total Rendering time: ${elapsed} ms`, {
       tenant,
@@ -113,9 +132,10 @@ app.post(`${APIPrefix}/generate`, async (req, res) => {
   }
 });
 
-app.get(`/preview`, async (req, res) => {
+app.get(`/preview`, async (req: PreviewHandlerRequest, res) => {
   const template: ServiceNames = req.query.template as ServiceNames;
   const templateData = await getTemplateData(req.headers, template);
+  const orientationOption = processOrientationOption(req);
 
   const url = `http://localhost:${PORT}?template=${template}`;
   try {
@@ -131,7 +151,8 @@ app.get(`/preview`, async (req, res) => {
     const pdfBuffer = await previewPdf(
       url,
       template,
-      templateData as Record<string, unknown>
+      templateData as Record<string, unknown>,
+      orientationOption // could later turn into a full options object for other things outside orientation.
     );
     res.set('Content-Type', 'application/pdf');
     res.status(200).send(pdfBuffer);
